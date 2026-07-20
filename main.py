@@ -6,112 +6,133 @@ import replicate
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-# این خط را دقیقاً این‌طور بنویس
 API_TOKEN = "r8_ec3ZsZ8kWfQRAzptdUyqKYlaFVT7zMP4QlNMp"
 
 bot = telebot.TeleBot(BOT_TOKEN)
-user_selection = {}
 
-# --- دیتابیس ---
-conn = sqlite3.connect("users.db", check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, credit INTEGER)")
-conn.commit()
+# ذخیره موقت متن کاربر برای پردازش در مرحله بعد
+user_prompts = {}
 
-def get_credit(user_id):
-    cursor.execute("SELECT credit FROM users WHERE id=?", (user_id,))
-    row = cursor.fetchone()
-    if row: return row[0]
-    cursor.execute("INSERT INTO users VALUES (?, ?)", (user_id, 3))
-    conn.commit()
-    return 3
-
-# --- منوی اصلی (دقیق مطابق عکس) ---
-def main_menu():
-    markup = types.InlineKeyboardMarkup()
-    markup.row(types.InlineKeyboardButton("بر*هنه ساز 👙", callback_data="nude_gen"),
-               types.InlineKeyboardButton("تعویض چهره 🎭", callback_data="swap_face"))
-    markup.row(types.InlineKeyboardButton("حذف واترمارک 💧", callback_data="remove_wm"),
-               types.InlineKeyboardButton("حذف پس‌زمینه 🖼️", callback_data="remove_bg"))
-    markup.row(types.InlineKeyboardButton("تغییر لباس 👗", callback_data="change_cloth"),
-               types.InlineKeyboardButton("بهبود عکس ✨", callback_data="enhance"))
-    markup.row(types.InlineKeyboardButton("حساب کاربری من 👤", callback_data="profile"),
-               types.InlineKeyboardButton("زبان 🌐", callback_data="lang"))
+# --- منوی دکمه‌های استایل (دقیقاً مطابق عکس‌های Somnium) ---
+def styles_menu():
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    
+    markup.add(
+        types.InlineKeyboardButton("Abyssal Void v4", callback_data="style_Abyssal Void v4"),
+        types.InlineKeyboardButton("Realistic v3", callback_data="style_Realistic v3"),
+        types.InlineKeyboardButton("Stick Logo V4", callback_data="style_Stick Logo V4"),
+        types.InlineKeyboardButton("Complex System V4", callback_data="style_Complex System V4"),
+        types.InlineKeyboardButton("Neonic V4", callback_data="style_Neonic V4"),
+        types.InlineKeyboardButton("Zdzislaw V4", callback_data="style_Zdzislaw V4"),
+        types.InlineKeyboardButton("Exprealism V4", callback_data="style_Exprealism V4"),
+        types.InlineKeyboardButton("Van Gogh V4", callback_data="style_Van Gogh V4"),
+        types.InlineKeyboardButton("Fujifilm V4", callback_data="style_Fujifilm V4"),
+        types.InlineKeyboardButton("Steampunk V4", callback_data="style_Steampunk V4"),
+        types.InlineKeyboardButton("Cinematic V4", callback_data="style_Cinematic V4"),
+        types.InlineKeyboardButton("Character V4", callback_data="style_Character V4"),
+        types.InlineKeyboardButton("Futurepunk V4", callback_data="style_Futurepunk V4"),
+        types.InlineKeyboardButton("3D v4", callback_data="style_3D v4"),
+        types.InlineKeyboardButton("Golden Hour v4", callback_data="style_Golden Hour v4"),
+        types.InlineKeyboardButton("Realistic v4", callback_data="style_Realistic v4"),
+        types.InlineKeyboardButton("Surrealism v3", callback_data="style_Surrealism v3"),
+        types.InlineKeyboardButton("Cartoon v3", callback_data="style_Cartoon v3")
+    )
+    
+    # دکمه‌های ناوبری پایین منو (صفحه قبل، حذف، صفحه بعد)
+    markup.row(
+        types.InlineKeyboardButton("«", callback_data="prev_page"),
+        types.InlineKeyboardButton("❌", callback_data="cancel"),
+        types.InlineKeyboardButton("»", callback_data="next_page")
+    )
     return markup
 
 # --- پیام شروع ---
 @bot.message_handler(commands=['start'])
 def start(message):
     text = (
-        "سلام، شاهد! 👋\n"
-        "من یک ربات پیشرفته تلگرام هستم که از ابزارهای هوش مصنوعی برای کمک به شما در تبدیل فوری و رایگان عکس‌هایتان استفاده می‌کنم.\n\n"
-        "ویژگی‌ها ✨\n"
-        "🔸 بهبود کیفیت عکس HD\n"
-        "🔸 حذف واترمارک و متن\n"
-        "🔸 حذف پس‌زمینه\n"
-        "🔸 تغییر لباس و پوشاک\n"
-        "🔸 عکس به بر*هنه (بر*هنه ساز)\n"
-        "🔸 تعویض دو چهره\n\n"
-        "✅ گزینه خود را از زیر انتخاب کنید:"
+        "سلام شاهد عزیز به ربات طراحی لوگو و عکس Somnium خوش آمدید! 👋\n\n"
+        "لطفاً متن مورد نظر خود را ارسال کنید (مانند نمونه زیر):\n\n"
+        "Main Name (Center): REIS SHAHID\n"
+        "Secondary Text (Lower Banner): SHADOW CORE\n"
+        "Upper Monogram: RS"
     )
-    bot.send_message(message.chat.id, text, reply_markup=main_menu())
+    bot.send_message(message.chat.id, text)
 
-# --- مدیریت دکمه‌ها ---
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    user_id = call.from_user.id
-    if call.data == "profile":
-        credit = get_credit(user_id)
-        text = (
-            f"👤 حساب کاربری من\n\n"
-            f"💳 اعتبار موجود: {credit}\n"
-            f"👥 کل دعوت‌ها: 0\n"
-            f"🆔 شناسه چت: {user_id}\n"
-            f"🔗 لینک دعوت: https://t.me/Edit_With_Ai_Bot?start={user_id}\n\n"
-            f"📌 1 دعوت = 1 اعتبار\n"
-            f"⚡ برای دریافت اعتبار بیشتر، کاربران را با لینک دعوت خود دعوت کنید\n\n"
-            f"💎 شما همچنین می‌توانید اعتبار را با قیمت ارزان از @Kaliboy002 بخرید"
-        )
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=main_menu())
-    
-    elif call.data in ["nude_gen", "swap_face", "remove_wm", "remove_bg", "change_cloth", "enhance"]:
-        user_selection[user_id] = call.data
-        bot.answer_callback_query(call.id, "✅ انتخاب شد. حالا عکس خود را ارسال کنید.")
-
-# --- پردازش عکس ---
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
+# --- دریافت متن کاربر ---
+@bot.message_handler(content_types=['text'])
+def handle_text(message):
     user_id = message.from_user.id
-    action = user_selection.get(user_id)
-    if not action:
-        bot.reply_to(message, "⚠️ ابتدا از منو یک گزینه انتخاب کنید.")
-        return
+    user_prompts[user_id] = message.text  # ذخیره متن فرستاده شده
     
-    msg = bot.reply_to(message, "⏳ در حال پردازش...")
+    # نمایش منوی انتخاب استایل مشابه عکس شما
+    bot.reply_to(message, "🐈 Choose The Style:", reply_markup=styles_menu())
+
+# --- مدیریت انتخاب استایل و ساخت عکس ---
+@bot.callback_query_handler(func=lambda call: call.data.startswith("style_"))
+def process_style(call):
+    user_id = call.from_user.id
+    style_name = call.data.replace("style_", "")
+    
+    # بررسی اینکه آیا کاربر از قبل متنی فرستاده است یا خیر
+    user_text = user_prompts.get(user_id)
+    if not user_text:
+        bot.answer_callback_query(call.id, "⚠️ ابتدا متن خود را ارسال کنید.")
+        return
+
+    # آپدیت پیام به وضعیت در حال پردازش
+    bot.edit_message_text(
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id, 
+        text=f"⚡ Style: {style_name}\n\n⏳ در حال ساخت تصویر شما، لطفاً شکیبا باشید..."
+    )
+    
     try:
-        file_info = bot.get_file(message.photo[-1].file_id)
-        photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
-        
-        # و در بخش پردازش عکس، به جای os.environ یا متغیرهای دیگر، فقط از همین API_TOKEN استفاده کن:
+        # اتصال به کلاینت Replicate
         client = replicate.Client(api_token=API_TOKEN)
         
-        if action == "remove_bg":
-            output = client.run("cjwbw/rembg:fb8af69c9b13970b8a3e74640d2105193910c27943d2c88219016e78864d4206", input={"image": photo_url})
-            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
-        elif action == "enhance":
-            output = client.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
-            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
-        elif action == "nude_gen":
-            output = client.run("stability-ai/stable-diffusion:27b5a9437198a8764a7c067750893309a473e04e13511197c364132030282126", 
-                               input={"prompt": "nude person", "image": photo_url})
-            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
-        else:
-            bot.send_message(message.chat.id, "این قابلیت در حال توسعه است.")
+        # ترکیب متن کاربر با استایل انتخاب شده برای ساخت پرامپت دقیق هوش مصنوعی
+        full_prompt = f"Logo design, text typography layout. Text details: {user_text}. Style: {style_name}, highly detailed, 4k resolution, graphic design."
         
-        bot.delete_message(message.chat.id, msg.message_id)
+        # استفاده از مدل قدرتمند Flux یا Stable Diffusion برای تولید متن و لوگو دقیق
+        output = client.run(
+            "black-forest-labs/flux-schnell",
+            input={
+                "prompt": full_prompt,
+                "aspect_ratio": "1:1",
+                "output_format": "jpg"
+            }
+        )
+        
+        # ارسال عکس نهایی به همراه متن‌های مشخص شده و دکمه سورس کد
+        if output and len(output) > 0:
+            image_url = output[0]
+            
+            caption_text = (
+                f"🍇 **Dream:**\n{user_text}\n\n"
+                f"🐈 **Style:** {style_name}"
+            )
+            
+            # دکمه شیشه‌ای زیر عکس نهایی
+            final_markup = types.InlineKeyboardMarkup()
+            final_markup.add(types.InlineKeyboardButton("Source Code ↗️", url="https://github.com"))
+            
+            bot.send_photo(call.message.chat.id, image_url, caption=caption_text, parse_mode="Markdown", reply_markup=final_markup)
+            bot.delete_message(call.message.chat.id, call.message.message_id)
+            
+        else:
+            bot.send_message(call.message.chat.id, "❌ مشکلی در تولید تصویر به وجود آمد.")
+            
     except Exception as e:
-        bot.reply_to(message, f"❌ خطا: {str(e)[:100]}")
+        bot.send_message(call.message.chat.id, f"❌ خطا در اتصال به هوش مصنوعی:\n{str(e)[:100]}")
+    
     finally:
-        user_selection[user_id] = None
+        # پاک کردن متن موقت کاربر پس از اتمام فرآیند
+        if user_id in user_prompts:
+            del user_prompts[user_id]
+
+# --- مدیریت دکمه خروج/لغو ---
+@bot.callback_query_handler(func=lambda call: call.data == "cancel")
+def cancel_action(call):
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text="❌ عملیات لغو شد. می‌توانید متن جدیدی بفرستید.")
 
 bot.infinity_polling()
