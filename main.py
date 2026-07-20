@@ -8,11 +8,12 @@ import replicate
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
 API_TOKEN = "r8_ec3ZsZ8kWfQRAzptdUyqKYlaFVT7zMP4QlNMp"
 
-# اعمال مستقیم توکن در محیط برای جلوگیری از خطای ۴۰۱
-os.environ["REPLICATE_API_TOKEN"] = API_TOKEN
-
 bot = telebot.TeleBot(BOT_TOKEN)
 user_prompts = {}
+
+# تعریف ثابت برای کلاینت (به جای تکیه بر متغیرهای محیطی)
+def get_replicate_client():
+    return replicate.Client(api_token=API_TOKEN)
 
 def styles_menu():
     markup = types.InlineKeyboardMarkup(row_width=2)
@@ -77,8 +78,8 @@ def process_style(call):
     )
     
     try:
-        # استفاده از کلاینت با توکن تنظیم شده
-        client = replicate.Client() 
+        # استفاده از کلاینت با توکن مستقیم
+        client = get_replicate_client()
         
         full_prompt = f"Logo design, text typography layout. Text details: {user_text}. Style: {style_name}, highly detailed, 4k resolution, graphic design."
         
