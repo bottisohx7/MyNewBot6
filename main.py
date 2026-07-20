@@ -6,8 +6,8 @@ import replicate
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-# توکن مستقیم قرار داده شده تا قطعا مشکل 401 حل شود
-API_TOKEN = "r8_PwLrrwfl8Zy1LrtVvyEJI2lK2xnOGzi2FwfSV"
+# کلید جدید شما اینجا قرار گرفت
+API_TOKEN = "r8_ec3ZsZ8kWfQRAzptdUyqKYlaFVT7zMP4QlNMp"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_selection = {}
@@ -78,7 +78,7 @@ def callback(call):
         user_selection[user_id] = call.data
         bot.answer_callback_query(call.id, "✅ انتخاب شد. حالا عکس خود را ارسال کنید.")
 
-# --- پردازش عکس (حل مشکل 401) ---
+# --- پردازش عکس ---
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
@@ -92,7 +92,7 @@ def handle_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
         
-        # استفاده از کلاینت برای رفع خطای احراز هویت
+        # استفاده از کلاینت با توکن جدید شما
         client = replicate.Client(api_token=API_TOKEN)
         
         if action == "remove_bg":
