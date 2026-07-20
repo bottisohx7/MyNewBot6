@@ -1,18 +1,17 @@
+import os
 import sqlite3
 import telebot
 from telebot import types
 import replicate
-import os
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-REPLICATE_API_TOKEN = "r8_PwLrrwfl8Zy1LrtVvyEJI2lK2xnOGzi2FwfSV"
-os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-user_selection = {} # برای ذخیره وضعیت انتخاب کاربر
+user_selection = {}
 
-# --- مدیریت دیتابیس ---
+# --- دیتابیس ---
 conn = sqlite3.connect("users.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, credit INTEGER)")
@@ -30,7 +29,7 @@ def reduce_credit(user_id):
     cursor.execute("UPDATE users SET credit = credit - 1 WHERE id=?", (user_id,))
     conn.commit()
 
-# --- منوی اصلی (مشابه ربات مرجع) ---
+# --- منوی اصلی کامل ---
 def main_menu():
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("بر*هنه ساز 👙", callback_data="nude_gen"),
@@ -43,14 +42,10 @@ def main_menu():
                types.InlineKeyboardButton("زبان 🌐", callback_data="lang"))
     return markup
 
-# --- پردازش دستورات ---
+# --- هندلرها ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    text = (
-        "سلام، شاهد! 👋\n"
-        "من یک ربات پیشرفته هستم که از ابزارهای هوش مصنوعی برای ویرایش عکس‌های شما استفاده می‌کنم.\n\n"
-        "✅ گزینه خود را از زیر انتخاب کنید:"
-    )
+    text = "سلام، شاهد! 👋\nمن یک ربات پیشرفته هستم که از ابزارهای هوش مصنوعی برای ویرایش عکس‌های شما استفاده می‌کنم.\n\n✅ گزینه خود را از زیر انتخاب کنید:"
     bot.send_message(message.chat.id, text, reply_markup=main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -58,41 +53,58 @@ def callback(call):
     user_id = call.from_user.id
     if call.data == "profile":
         credit = get_credit(user_id)
-        bot.send_message(call.message.chat.id, f"👤 اعتبار موجود: {credit}\n🆔 شناسه: {user_id}")
-    elif call.data in ["remove_bg", "enhance", "nude_gen"]:
+        text = (
+            f"👤 حساب کاربری من\n"
+            f"💳 اعتبار موجود: {credit}\n"
+            f"👥 کل دعوت‌ها: 0\n"
+            f"🆔 شناسه چت: {user_id}\n"
+            f"🔗 لینک دعوت: https://t.me/Edit_With_Ai_Bot?start={user_id}\n\n"
+            f"📌 1 دعوت = 1 اعتبار\n"
+            f"⚡ برای دریافت اعتبار بیشتر، کاربران را با لینک دعوت خود دعوت کنید\n"
+            f"💎 شما همچنین می‌توانید اعتبار را با قیمت ارزان از @Kaliboy002 بخرید"
+        )
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=main_menu())
+    
+    elif call.data in ["nude_gen", "swap_face", "remove_wm", "remove_bg", "change_cloth", "enhance"]:
         user_selection[user_id] = call.data
-        bot.send_message(call.message.chat.id, f"✅ حالت {call.data} انتخاب شد. لطفاً عکس خود را بفرستید.")
+        bot.answer_callback_query(call.id, f"✅ حالت {call.data} انتخاب شد. عکس بفرستید.")
+    
+    elif call.data == "lang":
+        bot.answer_callback_query(call.id, "تنظیمات زبان به‌زودی...")
     else:
         bot.answer_callback_query(call.id, "این قابلیت به‌زودی فعال می‌شود!")
 
-# --- پردازش تصاویر ---
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
     action = user_selection.get(user_id)
-
     if not action:
-        bot.reply_to(message, "⚠️ لطفاً ابتدا از منوی اصلی یک گزینه را انتخاب کنید.")
+        bot.reply_to(message, "⚠️ ابتدا از منو یک گزینه انتخاب کنید.")
         return
-
+    
     if get_credit(user_id) <= 0:
-        bot.reply_to(message, "❌ اعتبار شما تمام شده است. لطفاً دعوت کنید یا اعتبار بخرید.")
+        bot.reply_to(message, "❌ اعتبار شما تمام شده است.")
         return
-
+    
     msg = bot.reply_to(message, "⏳ در حال پردازش توسط هوش مصنوعی...")
     
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+        client = replicate.Client(api_token=REPLICATE_API_TOKEN)
         
-        # انتخاب مدل بر اساس انتخاب کاربر
+        # پردازش بر اساس انتخاب کاربر
         if action == "remove_bg":
-            output = replicate.run("cjwbw/rembg:fb8af69c9b13970b8a3e74640d2105193910c27943d2c88219016e78864d4206", input={"image": photo_url})
-        else: # پیش فرض بهبود کیفیت
-            output = replicate.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
-        
-        reduce_credit(user_id)
-        bot.send_message(message.chat.id, f"✅ نتیجه آماده شد:\n{output}")
+            output = client.run("cjwbw/rembg:fb8af69c9b13970b8a3e74640d2105193910c27943d2c88219016e78864d4206", input={"image": photo_url})
+            reduce_credit(user_id)
+            bot.send_message(message.chat.id, f"✅ نتیجه حذف پس‌زمینه:\n{output}")
+        elif action == "enhance":
+            output = client.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
+            reduce_credit(user_id)
+            bot.send_message(message.chat.id, f"✅ نتیجه بهبود کیفیت:\n{output}")
+        else:
+            bot.send_message(message.chat.id, "این قابلیت در حال حاضر در حال توسعه است.")
+            
         bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
         bot.reply_to(message, f"❌ خطا در پردازش: {e}")
