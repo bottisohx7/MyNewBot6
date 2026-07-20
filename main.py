@@ -1,4 +1,4 @@
-Import sqlite3
+import sqlite3
 import telebot
 from telebot import types
 import replicate
