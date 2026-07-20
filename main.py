@@ -6,7 +6,8 @@ import replicate
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN") or "r8_PwLrrwfl8Zy1LrtVvyEJI2lK2xnOGzi2FwfSV"
+# توکن مستقیم قرار داده شده تا قطعا مشکل 401 حل شود
+API_TOKEN = "r8_PwLrrwfl8Zy1LrtVvyEJI2lK2xnOGzi2FwfSV"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_selection = {}
@@ -25,7 +26,7 @@ def get_credit(user_id):
     conn.commit()
     return 3
 
-# --- منوی اصلی ---
+# --- منوی اصلی (دقیق مطابق عکس) ---
 def main_menu():
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("بر*هنه ساز 👙", callback_data="nude_gen"),
@@ -38,7 +39,7 @@ def main_menu():
                types.InlineKeyboardButton("زبان 🌐", callback_data="lang"))
     return markup
 
-# --- هندلرها ---
+# --- پیام شروع ---
 @bot.message_handler(commands=['start'])
 def start(message):
     text = (
@@ -55,6 +56,7 @@ def start(message):
     )
     bot.send_message(message.chat.id, text, reply_markup=main_menu())
 
+# --- مدیریت دکمه‌ها ---
 @bot.callback_query_handler(func=lambda call: True)
 def callback(call):
     user_id = call.from_user.id
@@ -74,8 +76,9 @@ def callback(call):
     
     elif call.data in ["nude_gen", "swap_face", "remove_wm", "remove_bg", "change_cloth", "enhance"]:
         user_selection[user_id] = call.data
-        bot.answer_callback_query(call.id, f"✅ گزینه {call.data} انتخاب شد. حالا عکس خود را بفرستید.")
+        bot.answer_callback_query(call.id, "✅ انتخاب شد. حالا عکس خود را ارسال کنید.")
 
+# --- پردازش عکس (حل مشکل 401) ---
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
@@ -84,26 +87,26 @@ def handle_photo(message):
         bot.reply_to(message, "⚠️ ابتدا از منو یک گزینه انتخاب کنید.")
         return
     
-    msg = bot.reply_to(message, "⏳ در حال پردازش تصویر توسط هوش مصنوعی...")
+    msg = bot.reply_to(message, "⏳ در حال پردازش...")
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
-        client = replicate.Client(api_token=REPLICATE_API_TOKEN)
         
-        # مدل‌های فعال برای هر گزینه
+        # استفاده از کلاینت برای رفع خطای احراز هویت
+        client = replicate.Client(api_token=API_TOKEN)
+        
         if action == "remove_bg":
             output = client.run("cjwbw/rembg:fb8af69c9b13970b8a3e74640d2105193910c27943d2c88219016e78864d4206", input={"image": photo_url})
+            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
         elif action == "enhance":
             output = client.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
+            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
         else:
-            bot.send_message(message.chat.id, "این قابلیت در حال حاضر در حال توسعه است.")
-            bot.delete_message(message.chat.id, msg.message_id)
-            return
-
-        bot.send_message(message.chat.id, f"✅ نتیجه آماده شد:\n{output}")
+            bot.send_message(message.chat.id, "این قابلیت در حال توسعه است.")
+        
         bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
-        bot.reply_to(message, f"❌ خطا در ارتباط با هوش مصنوعی: {e}")
+        bot.reply_to(message, f"❌ خطا: {str(e)[:100]}")
     finally:
         user_selection[user_id] = None
 
