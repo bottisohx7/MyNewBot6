@@ -6,7 +6,8 @@ import replicate
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
+# استفاده از توکن محیطی با پشتیبان ثابت برای رفع خطای 401
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN") or "r8_PwLrrwfl8Zy1LrtVvyEJI2lK2xnOGzi2FwfSV"
 
 bot = telebot.TeleBot(BOT_TOKEN)
 user_selection = {}
@@ -25,11 +26,7 @@ def get_credit(user_id):
     conn.commit()
     return 3
 
-def reduce_credit(user_id):
-    cursor.execute("UPDATE users SET credit = credit - 1 WHERE id=?", (user_id,))
-    conn.commit()
-
-# --- منوی اصلی کامل ---
+# --- منوی اصلی ---
 def main_menu():
     markup = types.InlineKeyboardMarkup()
     markup.row(types.InlineKeyboardButton("بر*هنه ساز 👙", callback_data="nude_gen"),
@@ -45,7 +42,18 @@ def main_menu():
 # --- هندلرها ---
 @bot.message_handler(commands=['start'])
 def start(message):
-    text = "سلام، شاهد! 👋\nمن یک ربات پیشرفته هستم که از ابزارهای هوش مصنوعی برای ویرایش عکس‌های شما استفاده می‌کنم.\n\n✅ گزینه خود را از زیر انتخاب کنید:"
+    text = (
+        "سلام، شاهد! 👋\n"
+        "من یک ربات پیشرفته تلگرام هستم که از ابزارهای هوش مصنوعی برای کمک به شما در تبدیل فوری و رایگان عکس‌هایتان استفاده می‌کنم.\n\n"
+        "ویژگی‌ها ✨\n"
+        "🔸 بهبود کیفیت عکس HD\n"
+        "🔸 حذف واترمارک و متن\n"
+        "🔸 حذف پس‌زمینه\n"
+        "🔸 تغییر لباس و پوشاک\n"
+        "🔸 عکس به بر*هنه (بر*هنه ساز)\n"
+        "🔸 تعویض دو چهره\n\n"
+        "✅ گزینه خود را از زیر انتخاب کنید:"
+    )
     bot.send_message(message.chat.id, text, reply_markup=main_menu())
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -54,23 +62,20 @@ def callback(call):
     if call.data == "profile":
         credit = get_credit(user_id)
         text = (
-            f"👤 حساب کاربری من\n"
+            f"👤 حساب کاربری من\n\n"
             f"💳 اعتبار موجود: {credit}\n"
             f"👥 کل دعوت‌ها: 0\n"
             f"🆔 شناسه چت: {user_id}\n"
             f"🔗 لینک دعوت: https://t.me/Edit_With_Ai_Bot?start={user_id}\n\n"
             f"📌 1 دعوت = 1 اعتبار\n"
-            f"⚡ برای دریافت اعتبار بیشتر، کاربران را با لینک دعوت خود دعوت کنید\n"
+            f"⚡ برای دریافت اعتبار بیشتر، کاربران را با لینک دعوت خود دعوت کنید\n\n"
             f"💎 شما همچنین می‌توانید اعتبار را با قیمت ارزان از @Kaliboy002 بخرید"
         )
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=text, reply_markup=main_menu())
     
     elif call.data in ["nude_gen", "swap_face", "remove_wm", "remove_bg", "change_cloth", "enhance"]:
         user_selection[user_id] = call.data
-        bot.answer_callback_query(call.id, f"✅ حالت {call.data} انتخاب شد. عکس بفرستید.")
-    
-    elif call.data == "lang":
-        bot.answer_callback_query(call.id, "تنظیمات زبان به‌زودی...")
+        bot.answer_callback_query(call.id, "✅ انتخاب شد. حالا عکس خود را ارسال کنید.")
     else:
         bot.answer_callback_query(call.id, "این قابلیت به‌زودی فعال می‌شود!")
 
@@ -82,28 +87,22 @@ def handle_photo(message):
         bot.reply_to(message, "⚠️ ابتدا از منو یک گزینه انتخاب کنید.")
         return
     
-    if get_credit(user_id) <= 0:
-        bot.reply_to(message, "❌ اعتبار شما تمام شده است.")
-        return
-    
     msg = bot.reply_to(message, "⏳ در حال پردازش توسط هوش مصنوعی...")
-    
     try:
         file_info = bot.get_file(message.photo[-1].file_id)
         photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+        
+        # استفاده از کلاینت با توکن (این بخش خطای 401 را حل می‌کند)
         client = replicate.Client(api_token=REPLICATE_API_TOKEN)
         
-        # پردازش بر اساس انتخاب کاربر
         if action == "remove_bg":
             output = client.run("cjwbw/rembg:fb8af69c9b13970b8a3e74640d2105193910c27943d2c88219016e78864d4206", input={"image": photo_url})
-            reduce_credit(user_id)
-            bot.send_message(message.chat.id, f"✅ نتیجه حذف پس‌زمینه:\n{output}")
+            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
         elif action == "enhance":
             output = client.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
-            reduce_credit(user_id)
-            bot.send_message(message.chat.id, f"✅ نتیجه بهبود کیفیت:\n{output}")
+            bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
         else:
-            bot.send_message(message.chat.id, "این قابلیت در حال حاضر در حال توسعه است.")
+            bot.send_message(message.chat.id, "این قابلیت در حال توسعه است.")
             
         bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
