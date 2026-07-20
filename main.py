@@ -6,7 +6,7 @@ import replicate
 
 # --- تنظیمات ---
 BOT_TOKEN = "8911090985:AAHgWUcH-hZmg_iINZZ5SWOmu6fBZUaSesI"
-# کلید جدید شما اینجا قرار گرفت
+# این خط را دقیقاً این‌طور بنویس
 API_TOKEN = "r8_ec3ZsZ8kWfQRAzptdUyqKYlaFVT7zMP4QlNMp"
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -92,6 +92,7 @@ def handle_photo(message):
         file_info = bot.get_file(message.photo[-1].file_id)
         photo_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
         
+        # و در بخش پردازش عکس، به جای os.environ یا متغیرهای دیگر، فقط از همین API_TOKEN استفاده کن:
         client = replicate.Client(api_token=API_TOKEN)
         
         if action == "remove_bg":
@@ -101,7 +102,6 @@ def handle_photo(message):
             output = client.run("tencentarc/gfpgan:928360806b745499256956627685655938d227c88b776269661d9a5996d9943f", input={"img": photo_url})
             bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
         elif action == "nude_gen":
-            # اضافه شد: مدل Stable Diffusion برای قابلیت برهنه ساز
             output = client.run("stability-ai/stable-diffusion:27b5a9437198a8764a7c067750893309a473e04e13511197c364132030282126", 
                                input={"prompt": "nude person", "image": photo_url})
             bot.send_message(message.chat.id, f"✅ نتیجه:\n{output}")
